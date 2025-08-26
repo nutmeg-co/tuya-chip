@@ -5,8 +5,8 @@ project(tuya-chip-client C)
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
-# Add mbedtls as a subdirectory
-add_subdirectory(mbedtls)
+# Add vendor libraries
+add_subdirectory(vendor)
 
 # Create executable
 add_executable(tuya-client 
@@ -18,14 +18,12 @@ add_executable(tuya-client
 # Include directories
 target_include_directories(tuya-client PRIVATE 
     ${CMAKE_CURRENT_SOURCE_DIR}/src
-    ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/include
+    ${MBEDTLS_INCLUDE_DIRS}
 )
 
 # Link against mbedtls libraries
 target_link_libraries(tuya-client PRIVATE 
-    mbedtls
-    mbedx509
-    mbedcrypto
+    ${MBEDTLS_LIBRARIES}
 )
 
 # Platform-specific settings
