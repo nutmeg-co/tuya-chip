@@ -6,7 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "mbedtls/net_sockets.h"
+#include "transport_tcp.h"
 #include "mbedtls/ssl.h"
 #include "mbedtls/entropy.h"
 #include "mbedtls/ctr_drbg.h"
@@ -35,7 +35,7 @@ static void my_debug(void *ctx, int level,
 int main(int argc, char *argv[])
 {
     int ret = 1, len;
-    mbedtls_net_context server_fd;
+    transport_tcp_t transport;
     unsigned char buf[4096];
     const char *pers = "tuya_client";
 
@@ -49,7 +49,7 @@ int main(int argc, char *argv[])
 #endif
 
     /* Initialize contexts */
-    mbedtls_net_init(&server_fd);
+    transport_tcp_init(&transport);
     mbedtls_ssl_init(&ssl);
     mbedtls_ssl_config_init(&conf);
     mbedtls_ctr_drbg_init(&ctr_drbg);
@@ -74,9 +74,8 @@ int main(int argc, char *argv[])
     printf("  . Connecting to tcp/%s/%s...", SERVER_HOST, SERVER_PORT);
     fflush(stdout);
 
-    if ((ret = mbedtls_net_connect(&server_fd, SERVER_HOST,
-                                   SERVER_PORT, MBEDTLS_NET_PROTO_TCP)) != 0) {
-        printf(" failed\n  ! mbedtls_net_connect returned %d\n\n", ret);
+    if ((ret = transport_tcp_connect(&transport, SERVER_HOST, SERVER_PORT)) != 0) {
+        printf(" failed\n  ! transport_tcp_connect returned %d\n\n", ret);
         goto exit;
     }
 
@@ -112,7 +111,7 @@ int main(int argc, char *argv[])
         goto exit;
     }
 
-    mbedtls_ssl_set_bio(&ssl, &server_fd, mbedtls_net_send, mbedtls_net_recv, NULL);
+    mbedtls_ssl_set_bio(&ssl, &transport, transport_tcp_send, transport_tcp_recv, NULL);
 
     printf(" ok\n");
 
@@ -197,7 +196,7 @@ exit:
 #endif
 
     /* Cleanup */
-    mbedtls_net_free(&server_fd);
+    transport_tcp_close(&transport);
     mbedtls_ssl_free(&ssl);
     mbedtls_ssl_config_free(&conf);
     mbedtls_ctr_drbg_free(&ctr_drbg);

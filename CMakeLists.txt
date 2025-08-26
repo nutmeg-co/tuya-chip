@@ -9,10 +9,14 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 add_subdirectory(mbedtls)
 
 # Create executable
-add_executable(tuya-client src/main.c)
+add_executable(tuya-client 
+    src/main.c
+    src/transport_tcp.c
+)
 
 # Include directories
 target_include_directories(tuya-client PRIVATE 
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls/include
 )
 
