@@ -31,6 +31,16 @@ typedef struct mbedtls_timing_delay_context {
     uint32_t fin_ms;
 } mbedtls_timing_delay_context;
 
+/* Platform time types and functions */
+typedef int64_t mbedtls_ms_time_t;
+
+/**
+ * \brief          Get current time in milliseconds
+ *
+ * \return         Milliseconds since some unspecified reference point
+ */
+mbedtls_ms_time_t mbedtls_ms_time(void);
+
 /**
  * \brief          Get the current hardclock counter value
  *

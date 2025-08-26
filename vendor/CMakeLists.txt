@@ -11,9 +11,6 @@ set(ENABLE_TESTING OFF CACHE BOOL "" FORCE)
 set(ENABLE_PROGRAMS OFF CACHE BOOL "" FORCE)
 set(MBEDTLS_FATAL_WARNINGS OFF CACHE BOOL "" FORCE)
 
-# Add compile flags for custom implementations
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DMBEDTLS_TIMING_ALT -DMBEDTLS_NO_PLATFORM_ENTROPY -I${CMAKE_CURRENT_SOURCE_DIR}/mbedtls_patch/include/mbedtls")
-
 # Add mbedtls
 add_subdirectory(mbedtls)
 
@@ -27,9 +24,40 @@ if(TARGET mbedcrypto)
     # Add include directory for our custom headers
     target_include_directories(mbedcrypto PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls_patch/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls_patch/include/mbedtls
+    )
+    
+    # Add compile definitions for custom implementations
+    target_compile_definitions(mbedcrypto PUBLIC
+        MBEDTLS_TIMING_ALT
+        MBEDTLS_PLATFORM_MS_TIME_ALT
+        MBEDTLS_NO_PLATFORM_ENTROPY
     )
     
     message(STATUS "Added custom timing implementation to mbedcrypto")
+endif()
+
+# Apply the same definitions to other mbedtls libraries
+if(TARGET mbedx509)
+    target_compile_definitions(mbedx509 PUBLIC
+        MBEDTLS_TIMING_ALT
+        MBEDTLS_PLATFORM_MS_TIME_ALT
+        MBEDTLS_NO_PLATFORM_ENTROPY
+    )
+    target_include_directories(mbedx509 PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls_patch/include
+    )
+endif()
+
+if(TARGET mbedtls)
+    target_compile_definitions(mbedtls PUBLIC
+        MBEDTLS_TIMING_ALT
+        MBEDTLS_PLATFORM_MS_TIME_ALT
+        MBEDTLS_NO_PLATFORM_ENTROPY
+    )
+    target_include_directories(mbedtls PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/mbedtls_patch/include
+    )
 endif()
 
 # Export mbedtls targets for parent project

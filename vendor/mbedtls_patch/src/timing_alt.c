@@ -17,6 +17,17 @@ static volatile uint64_t timing_counter = 0;
 volatile int mbedtls_timing_alarmed = 0;
 
 /**
+ * \brief          Get current time in milliseconds
+ */
+mbedtls_ms_time_t mbedtls_ms_time(void)
+{
+    /* Return current counter value as milliseconds
+     * In a real implementation, this would read a hardware timer
+     * For now, increment and return the counter */
+    return (mbedtls_ms_time_t)(timing_counter++);
+}
+
+/**
  * \brief          Return the CPU cycle counter value
  */
 unsigned long mbedtls_timing_hardclock(void)
