@@ -3,15 +3,23 @@
  * Without certificate verification (for testing purposes only)
  */
 
+/* Uncomment to use custom RNG instead of CTR_DRBG */
+#define CUSTOM_RNG
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "transport_tcp.h"
 #include "mbedtls/ssl.h"
-#include "mbedtls/entropy.h"
-#include "mbedtls/ctr_drbg.h"
 #include "mbedtls/error.h"
 #include "mbedtls/debug.h"
+
+#ifdef CUSTOM_RNG
+#include "custom_rng.h"
+#else
+#include "mbedtls/entropy.h"
+#include "mbedtls/ctr_drbg.h"
+#endif
 
 #define SERVER_HOST "laundrygo.id"
 #define SERVER_PORT "443"
@@ -39,8 +47,12 @@ int main(int argc, char *argv[])
     unsigned char buf[4096];
     const char *pers = "tuya_client";
 
+#ifdef CUSTOM_RNG
+    custom_rng_context custom_rng;
+#else
     mbedtls_entropy_context entropy;
     mbedtls_ctr_drbg_context ctr_drbg;
+#endif
     mbedtls_ssl_context ssl;
     mbedtls_ssl_config conf;
 
@@ -52,21 +64,37 @@ int main(int argc, char *argv[])
     transport_tcp_init(&transport);
     mbedtls_ssl_init(&ssl);
     mbedtls_ssl_config_init(&conf);
+    
+#ifdef CUSTOM_RNG
+    custom_rng_init(&custom_rng);
+#else
     mbedtls_ctr_drbg_init(&ctr_drbg);
     mbedtls_entropy_init(&entropy);
+#endif
 
     printf("\n==== HTTPS Client for laundrygo.id ====\n\n");
 
     /* 1. Initialize the RNG */
+#ifdef CUSTOM_RNG
+    printf("  . Initializing custom RNG...");
+#else
     printf("  . Seeding the random number generator...");
+#endif
     fflush(stdout);
 
+#ifdef CUSTOM_RNG
+    if ((ret = custom_rng_seed(&custom_rng, (const unsigned char *)pers, strlen(pers))) != 0) {
+        printf(" failed\n  ! custom_rng_seed returned %d\n", ret);
+        goto exit;
+    }
+#else
     if ((ret = mbedtls_ctr_drbg_seed(&ctr_drbg, mbedtls_entropy_func, &entropy,
                                      (const unsigned char *) pers,
                                      strlen(pers))) != 0) {
         printf(" failed\n  ! mbedtls_ctr_drbg_seed returned %d\n", ret);
         goto exit;
     }
+#endif
 
     printf(" ok\n");
 
@@ -98,7 +126,13 @@ int main(int argc, char *argv[])
     /* IMPORTANT: Skip certificate verification - NOT SECURE, for testing only */
     printf("  . Configuring SSL/TLS (skipping certificate verification)...");
     mbedtls_ssl_conf_authmode(&conf, MBEDTLS_SSL_VERIFY_NONE);
+    
+#ifdef CUSTOM_RNG
+    mbedtls_ssl_conf_rng(&conf, custom_rng_random, &custom_rng);
+#else
     mbedtls_ssl_conf_rng(&conf, mbedtls_ctr_drbg_random, &ctr_drbg);
+#endif
+    
     mbedtls_ssl_conf_dbg(&conf, my_debug, stdout);
 
     if ((ret = mbedtls_ssl_setup(&ssl, &conf)) != 0) {
@@ -199,8 +233,13 @@ exit:
     transport_tcp_close(&transport);
     mbedtls_ssl_free(&ssl);
     mbedtls_ssl_config_free(&conf);
+    
+#ifdef CUSTOM_RNG
+    custom_rng_free(&custom_rng);
+#else
     mbedtls_ctr_drbg_free(&ctr_drbg);
     mbedtls_entropy_free(&entropy);
+#endif
 
     printf("==== End of HTTPS Client ====\n\n");
 

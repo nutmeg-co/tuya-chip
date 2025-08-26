@@ -12,6 +12,7 @@ add_subdirectory(mbedtls)
 add_executable(tuya-client 
     src/main.c
     src/transport_tcp.c
+    src/custom_rng.c
 )
 
 # Include directories
