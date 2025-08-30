@@ -71,6 +71,51 @@ static int on_frame_end(websocket_parser *p)
     return 0;
 }
 
+static int read_line(int fd, char *buffer, size_t max_len)
+{
+    size_t pos = 0;
+    char c;
+    ssize_t n;
+
+    while (pos < max_len - 1)
+    {
+        n = recv(fd, &c, 1, 0);
+
+        if (n < 0)
+        {
+            if (errno == EINTR)
+                continue;
+            return -1;
+        }
+
+        if (n == 0)
+        {
+            if (pos == 0)
+                return 0;
+            break;
+        }
+
+        buffer[pos++] = c;
+
+        if (c == '\n')
+        {
+            if (pos >= 2 && buffer[pos - 2] == '\r')
+            {
+                buffer[pos - 2] = '\0';
+                return pos - 2;
+            }
+            else
+            {
+                buffer[pos - 1] = '\0';
+                return pos - 1;
+            }
+        }
+    }
+
+    buffer[pos] = '\0';
+    return pos;
+}
+
 static int connect_to_server(const char *host, const char *port)
 {
     struct addrinfo hints, *servinfo, *p;
@@ -119,8 +164,11 @@ static int connect_to_server(const char *host, const char *port)
 static int perform_handshake()
 {
     char request[4096];
-    char response[4096];
-    ssize_t bytes_sent, bytes_received;
+    char line[1024];
+    ssize_t bytes_sent;
+    int line_len;
+    int status_code = 0;
+    int headers_complete = 0;
 
     const char *ws_key = "dGhlIHNhbXBsZSBub25jZQ==";
 
@@ -136,8 +184,9 @@ static int perform_handshake()
 
     if (auth_token)
     {
-        offset += snprintf(request + offset, sizeof(request) - offset,
-                           "Authorization: Bearer %s\r\n", auth_token);
+        offset += snprintf(
+            request + offset, sizeof(request) - offset,
+            "Authorization: Bearer %s\r\n", auth_token);
     }
 
     snprintf(request + offset, sizeof(request) - offset, "\r\n");
@@ -151,19 +200,45 @@ static int perform_handshake()
         return -1;
     }
 
-    bytes_received = recv(sockfd, response, sizeof(response) - 1, 0);
-    if (bytes_received < 0)
+    printf("Handshake response:\n");
+
+    line_len = read_line(sockfd, line, sizeof(line));
+    if (line_len <= 0)
     {
-        perror("recv");
+        fprintf(stderr, "Failed to read status line\n");
         return -1;
     }
 
-    response[bytes_received] = '\0';
-    printf("Handshake response:\n%s\n", response);
+    printf("%s\n", line);
 
-    if (strstr(response, "101 Switching Protocols") == NULL)
+    if (sscanf(line, "HTTP/1.1 %d", &status_code) != 1)
     {
-        fprintf(stderr, "WebSocket handshake failed\n");
+        fprintf(stderr, "Invalid HTTP response\n");
+        return -1;
+    }
+
+    while (!headers_complete)
+    {
+        line_len = read_line(sockfd, line, sizeof(line));
+        if (line_len < 0)
+        {
+            fprintf(stderr, "Failed to read header line\n");
+            return -1;
+        }
+
+        if (line_len == 0)
+        {
+            headers_complete = 1;
+            printf("\n");
+            break;
+        }
+
+        printf("%s\n", line);
+    }
+
+    if (status_code != 101)
+    {
+        fprintf(stderr, "WebSocket handshake failed with status code: %d\n", status_code);
         return -1;
     }
 
