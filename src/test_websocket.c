@@ -278,6 +278,23 @@ static int send_text_message(const char *message)
     return 0;
 }
 
+static int send_ping_frame()
+{
+    char ping_frame[10];
+    char mask[4] = {0x12, 0x34, 0x56, 0x78};
+    size_t frame_len = websocket_build_frame(ping_frame, WS_OP_PING | WS_FIN | WS_HAS_MASK, mask, NULL, 0);
+
+    ssize_t sent = send(sockfd, ping_frame, frame_len, 0);
+    if (sent < 0)
+    {
+        perror("send ping");
+        return -1;
+    }
+
+    printf("Sent WebSocket ping frame\n");
+    return 0;
+}
+
 static void send_close_frame()
 {
     char close_frame[10];
@@ -357,12 +374,22 @@ int main(int argc, char *argv[])
         }
         else if (retval == 0)
         {
-            printf("Timeout: sending ping\n");
-            if (send_text_message(PING_JSON) < 0)
+            printf("Timeout: sending pings\n");
+
+            // Send WebSocket protocol ping
+            if (send_ping_frame() < 0)
             {
-                fprintf(stderr, "Failed to send ping\n");
+                fprintf(stderr, "Failed to send WebSocket ping\n");
                 break;
             }
+
+            // Send JSON ping message
+            if (send_text_message(PING_JSON) < 0)
+            {
+                fprintf(stderr, "Failed to send JSON ping\n");
+                break;
+            }
+
             continue;
         }
 
