@@ -6,12 +6,15 @@
 #include <netinet/in.h>
 #include <netdb.h>
 #include <errno.h>
+#include <sys/select.h>
 #include <websocket_parser.h>
 
 #define BUFFER_SIZE 4096
 #define HTTP_HOST "laundrygo.id"
 #define WS_HOST "do.laundrygo.id"
 #define WS_PORT "15774"
+
+#define PING_JSON "{\"type\":\"ping\"}"
 
 static int sockfd = -1;
 static websocket_parser parser;
@@ -329,16 +332,40 @@ int main(int argc, char *argv[])
     settings.on_frame_body = on_frame_body;
     settings.on_frame_end = on_frame_end;
 
-    if (send_text_message("Hello, WebSocket server!") < 0)
-    {
-        close(sockfd);
-        return 1;
-    }
-
     printf("Entering receive loop (press Ctrl+C to exit)...\n");
 
     while (1)
     {
+        fd_set readfds;
+        struct timeval tv;
+        int retval;
+
+        FD_ZERO(&readfds);
+        FD_SET(sockfd, &readfds);
+
+        tv.tv_sec = 5;
+        tv.tv_usec = 0;
+
+        retval = select(sockfd + 1, &readfds, NULL, NULL, &tv);
+
+        if (retval == -1)
+        {
+            if (errno == EINTR)
+                continue;
+            perror("select");
+            break;
+        }
+        else if (retval == 0)
+        {
+            printf("Timeout: sending ping\n");
+            if (send_text_message(PING_JSON) < 0)
+            {
+                fprintf(stderr, "Failed to send ping\n");
+                break;
+            }
+            continue;
+        }
+
         bytes_received = recv(sockfd, buffer, sizeof(buffer), 0);
 
         if (bytes_received < 0)
